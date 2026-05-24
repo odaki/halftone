@@ -53,6 +53,11 @@
   .preset-btn.active { background: #0af !important; color: #000 !important; border-color: #0af !important; }
   .small-btn { padding: 2px 7px; font-size: 0.8rem; background: #333; color: #aaa; border: 1px solid #555; border-radius: 4px; cursor: pointer; }
   .small-btn:hover { background: #444; }
+  .ch-badge { display:inline-block; padding:1px 7px; border-radius:4px; font-size:0.8rem; font-weight:bold; vertical-align:middle; }
+  .ch-C { background:#0b7fa0; color:#fff; }
+  .ch-M { background:#a0005a; color:#fff; }
+  .ch-Y { background:#a09000; color:#fff; }
+  .ch-K { background:#555;    color:#fff; }
   input[type=range]:focus, input[type=number]:focus, select:focus, button:focus { outline: 2px solid #0af; outline-offset: 2px; }
 </style>
 </head>
@@ -162,7 +167,7 @@
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 24px;">
 
       <div class="ctrl-group" id="grp-ca">
-        <label>Cyan 角度 <span id="v-ca">15</span>°</label>
+        <label><span class="ch-badge ch-C">C</span> 角度 <span id="v-ca">15</span>°</label>
         <div style="display:flex;gap:6px;align-items:center;">
           <input type="range" id="r-ca" min="0" max="90" value="15" style="flex:1;">
           <button type="button" class="small-btn angle-reset" data-rid="r-ca" data-vid="v-ca" data-def="15" title="デフォルトに戻す">↺</button>
@@ -170,7 +175,7 @@
       </div>
 
       <div class="ctrl-group" id="grp-ma">
-        <label>Magenta 角度 <span id="v-ma">45</span>°</label>
+        <label><span class="ch-badge ch-M">M</span> 角度 <span id="v-ma">45</span>°</label>
         <div style="display:flex;gap:6px;align-items:center;">
           <input type="range" id="r-ma" min="0" max="90" value="45" style="flex:1;">
           <button type="button" class="small-btn angle-reset" data-rid="r-ma" data-vid="v-ma" data-def="45" title="デフォルトに戻す">↺</button>
@@ -178,7 +183,7 @@
       </div>
 
       <div class="ctrl-group" id="grp-ya">
-        <label>Yellow 角度 <span id="v-ya">75</span>°</label>
+        <label><span class="ch-badge ch-Y">Y</span> 角度 <span id="v-ya">75</span>°</label>
         <div style="display:flex;gap:6px;align-items:center;">
           <input type="range" id="r-ya" min="0" max="90" value="75" style="flex:1;">
           <button type="button" class="small-btn angle-reset" data-rid="r-ya" data-vid="v-ya" data-def="75" title="デフォルトに戻す">↺</button>
@@ -186,7 +191,7 @@
       </div>
 
       <div class="ctrl-group" id="grp-ka">
-        <label>Black 角度 <span id="v-ka">45</span>°</label>
+        <label><span class="ch-badge ch-K">K</span> 角度 <span id="v-ka">45</span>°</label>
         <div style="display:flex;gap:6px;align-items:center;">
           <input type="range" id="r-ka" min="0" max="90" value="45" style="flex:1;">
           <button type="button" class="small-btn angle-reset" data-rid="r-ka" data-vid="v-ka" data-def="45" title="デフォルトに戻す">↺</button>
@@ -230,7 +235,7 @@
     <span style="font-size:0.8rem;color:#888;align-self:center;">表示:</span>
     <button class="plane-btn active" data-plane="C" style="padding:4px 14px;background:#0b7fa0;color:#fff;border-radius:6px;font-size:0.85rem;font-weight:bold;">C</button>
     <button class="plane-btn active" data-plane="M" style="padding:4px 14px;background:#a0005a;color:#fff;border-radius:6px;font-size:0.85rem;font-weight:bold;">M</button>
-    <button class="plane-btn active" data-plane="Y" style="padding:4px 14px;background:#a09000;color:#000;border-radius:6px;font-size:0.85rem;font-weight:bold;">Y</button>
+    <button class="plane-btn active" data-plane="Y" style="padding:4px 14px;background:#a09000;color:#fff;border-radius:6px;font-size:0.85rem;font-weight:bold;">Y</button>
     <button class="plane-btn active" data-plane="K" style="padding:4px 14px;background:#555;color:#fff;border-radius:6px;font-size:0.85rem;font-weight:bold;">K</button>
   </div>
   <canvas id="main-canvas"></canvas>
