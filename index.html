@@ -105,13 +105,21 @@
   </div>
 
   <div class="section-title">📐 キャンバス設定</div>
-  <div class="ctrl-group">
-    <label>幅 (mm)</label>
+  <div class="ctrl-group span2">
+    <label>形状</label>
+    <select id="i-cshape">
+      <option value="rect">四角形</option>
+      <option value="circle">円形</option>
+    </select>
+  </div>
+  <div class="ctrl-group" id="grp-cw">
+    <label id="lbl-cw">幅 (mm)</label>
     <input type="number" id="i-cw" value="90" min="10" max="1000" step="1">
   </div>
-  <div class="ctrl-group">
+  <div class="ctrl-group" id="grp-ch">
     <label>高さ (mm)</label>
     <input type="number" id="i-ch" value="90" min="10" max="1000" step="1">
+    <div class="hint" id="hint-ch" style="display:none;">円形では幅が直径になります</div>
   </div>
   <div class="ctrl-group">
     <label>余白 (mm)</label>
@@ -411,6 +419,7 @@ const cropCtx      = cropCanvasEl.getContext('2d');
 const overlayCtx   = cropOverlayEl.getContext('2d');
 const rZoom = $('r-zoom'), vZoom = $('v-zoom');
 const iMode = $('i-mode'), iShape = $('i-shape'), iBg = $('i-bg');
+const iCShape = $('i-cshape');
 const iPen  = $('i-pen'), iCW = $('i-cw'), iCH = $('i-ch'), iMargin = $('i-margin');
 const iUseK = $('i-use-k');
 const rGrid = $('r-grid'), vGrid = $('v-grid'), hintGrid = $('hint-grid');
@@ -439,6 +448,13 @@ function setGroupEnabled(id, enabled) {
   el.style.pointerEvents = enabled ? '' : 'none';
 }
 const numValue = (el, def) => parseFloat(el.value) || def;
+
+// キャンバスの寸法（mm）。円形では幅を直径として高さも同じにする
+function isCircleCanvas() { return iCShape.value === 'circle'; }
+function getCanvasSize() {
+  const w = numValue(iCW, 90);
+  return { w, h: isCircleCanvas() ? w : numValue(iCH, 90) };
+}
 
 function triggerDownload(filename, href) {
   const a = document.createElement('a');
@@ -535,9 +551,11 @@ function updateGridLabel() {
   const mm=Math.max(0.001,getGridMm());
   const p=numValue(iPen,0.2);
   vGrid.textContent=mm.toFixed(2);
-  const cols=Math.max(0,Math.floor(numValue(iCW,90)/mm));
-  const rows=Math.max(0,Math.floor(numValue(iCH,90)/mm));
-  hintGrid.textContent=`最小ドット径: ${(p*2).toFixed(2)}mm / ステップ幅: 約${p.toFixed(2)}mm / 概算ドット数/面: 約${cols*rows}`;
+  const {w,h}=getCanvasSize();
+  const cols=Math.max(0,Math.floor(w/mm));
+  const rows=Math.max(0,Math.floor(h/mm));
+  const count=isCircleCanvas()?Math.round(cols*rows*Math.PI/4):cols*rows;
+  hintGrid.textContent=`最小ドット径: ${(p*2).toFixed(2)}mm / ステップ幅: 約${p.toFixed(2)}mm / 概算ドット数/面: 約${count}`;
 }
 function gridMmToSlider(mm) {
   const {minMm,maxMm}=getGridRange();
@@ -576,6 +594,13 @@ document.querySelectorAll('[data-radius-val]').forEach(btn=>{
 
 iCW.addEventListener('input',()=>{ clampCrop(); drawCropPreview(); updateGridSliderStep(); updateGridLabel(); });
 iCH.addEventListener('input',()=>{ clampCrop(); drawCropPreview(); updateGridSliderStep(); updateGridLabel(); });
+function updateCanvasShapeState(){
+  const circle=isCircleCanvas();
+  $('lbl-cw').textContent=circle?'直径 (mm)':'幅 (mm)';
+  $('hint-ch').style.display=circle?'block':'none';
+  setGroupEnabled('grp-ch',!circle);
+}
+iCShape.addEventListener('change',()=>{ updateCanvasShapeState(); clampCrop(); drawCropPreview(); updateGridLabel(); });
 iPen.addEventListener('input',()=>{ updateGridSliderStep(); updateGridLabel(); });
 
 [{el:iCW,def:90,min:10,max:1000},{el:iCH,def:90,min:10,max:1000},
@@ -596,10 +621,12 @@ function readParams() {
   const gridMm=getGridMm(), rRatio=getRadiusRatio();
   const angles={};
   CHANNELS.forEach(ch=>{ angles[ch.label]=getAngle(ch); });
+  const {w,h}=getCanvasSize();
   return {
     mode:      getCurrentMode(),
-    canvasWmm: numValue(iCW,90),
-    canvasHmm: numValue(iCH,90),
+    canvasShape: iCShape.value,   // 'rect' | 'circle'（円形では canvasWmm が直径で canvasHmm と等しい）
+    canvasWmm: w,
+    canvasHmm: h,
     marginMm:  numValue(iMargin,0),
     penMm:     numValue(iPen,0.2),
     shape:     iShape.value,
@@ -628,6 +655,7 @@ setInterval(updateRenderBtn,200);
 // ============================================================
 updateAdvancedState();
 updateAngleSliderStates();
+updateCanvasShapeState();
 updateGridSliderStep();
 rGrid.value=gridMmToSlider(numValue(iPen,0.2)*5);
 updateGridLabel();
@@ -647,7 +675,8 @@ document.querySelectorAll('input[type=number],input[type=checkbox],select,button
 // クロップ
 // ============================================================
 function getFrameRect(W,H){
-  const aspect=numValue(iCW,90)/numValue(iCH,90);
+  const {w,h}=getCanvasSize();
+  const aspect=w/h;
   let fw,fh;
   if(W/H>aspect){fh=H;fw=fh*aspect;}else{fw=W;fh=fw/aspect;}
   return{fx:(W-fw)/2,fy:(H-fh)/2,fw,fh};
@@ -677,8 +706,16 @@ function drawCropPreview(){
   const{fx,fy,fw,fh}=getFrameRect(W,H);
   overlayCtx.clearRect(0,0,W,H);
   overlayCtx.fillStyle='rgba(0,0,0,0.45)';overlayCtx.fillRect(0,0,W,H);
-  overlayCtx.clearRect(fx,fy,fw,fh);
-  overlayCtx.strokeStyle='#0af';overlayCtx.lineWidth=2;overlayCtx.strokeRect(fx,fy,fw,fh);
+  overlayCtx.strokeStyle='#0af';overlayCtx.lineWidth=2;
+  if(isCircleCanvas()){
+    // 円形キャンバス: 枠（正方形）に内接する円をくり抜く
+    overlayCtx.beginPath();overlayCtx.arc(fx+fw/2,fy+fh/2,fw/2,0,Math.PI*2);
+    overlayCtx.save();overlayCtx.globalCompositeOperation='destination-out';overlayCtx.fillStyle='#000';overlayCtx.fill();overlayCtx.restore();
+    overlayCtx.stroke();
+  }else{
+    overlayCtx.clearRect(fx,fy,fw,fh);
+    overlayCtx.strokeRect(fx,fy,fw,fh);
+  }
 }
 function resizeCropCanvas(){
   const W=cropWrapEl.offsetWidth||680,H=Math.round(W*0.6);
@@ -839,6 +876,9 @@ function squareLines(r,penMm){
 function calcDots(cmyk,srcW,srcH,ch,p){
   const {canvasWmm:W,canvasHmm:H,marginMm:mg,gridMm,maxRadMm,penMm}=p;
   const innerL=mg,innerT=mg,innerR=W-mg,innerB=H-mg;
+  // 円形キャンバス: 中心 (W/2,H/2)、描画可能半径 = 半径 − 余白
+  const circle=p.canvasShape==='circle';
+  const ccx=W/2,ccy=H/2,drawR=W/2-mg;
   const angle=p.angles[ch.label]*Math.PI/180;
   const cos=Math.cos(angle),sin=Math.sin(angle);
   // 描画領域の余りを均等分配してグリッド原点をオフセット
@@ -857,15 +897,16 @@ function calcDots(cmyk,srcW,srcH,ch,p){
       const lx=gx*gridMm,ly=gy*gridMm;
       const wx=originX+lx*cos-ly*sin;
       const wy=originY+lx*sin+ly*cos;
-      if(wx<innerL||wx>innerR||wy<innerT||wy>innerB)continue;
+      const dist=circle?Math.hypot(wx-ccx,wy-ccy):0;
+      if(circle?dist>drawR:(wx<innerL||wx>innerR||wy<innerT||wy>innerB))continue;
       const px=Math.max(0,Math.min(srcW-1,Math.round((wx-dataL)/dataW*srcW)));
       const py=Math.max(0,Math.min(srcH-1,Math.round((wy-dataT)/dataH*srcH)));
       const val=cmyk[(py*srcW+px)*4+ch.idx];
       if(val<0.01)continue;
       const rDraw=Math.max(penMm/2,maxRadMm*val+penMm/2);
-      if(wx-rDraw<innerL||wx+rDraw>innerR||wy-rDraw<innerT||wy+rDraw>innerB)continue;
+      // ドット全体が描画領域に収まるものだけ採用
+      if(circle?dist+rDraw>drawR:(wx-rDraw<innerL||wx+rDraw>innerR||wy-rDraw<innerT||wy+rDraw>innerB))continue;
       dots.push({x:wx,y:wy,r:rDraw,row:gy});   // row: G-code の蛇行順序に使う
-
     }
   }
   return dots;
@@ -878,7 +919,9 @@ function calcDots(cmyk,srcW,srcH,ch,p){
 function drawDotsCanvas(oc,dots,ch,p){
   const {penMm,rRatio,shape}=p;
   oc.save();
-  if(p.marginMm<0){
+  if(p.canvasShape==='circle'){
+    oc.beginPath();oc.arc(p.canvasWmm/2*MM_TO_PX,p.canvasHmm/2*MM_TO_PX,p.canvasWmm/2*MM_TO_PX,0,Math.PI*2);oc.clip();
+  }else if(p.marginMm<0){
     oc.beginPath();oc.rect(0,0,p.canvasWmm*MM_TO_PX,p.canvasHmm*MM_TO_PX);oc.clip();
   }
   const [r,g,b]=ch.rgb;
@@ -972,7 +1015,8 @@ function buildSvg(){
   const {canvasWmm,canvasHmm,bgColor,gridMm,penMm,marginMm,rRatio,mode}=p;
   let svg=`<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${canvasWmm}mm" height="${canvasHmm}mm" viewBox="0 0 ${canvasWmm} ${canvasHmm}">\n`;
   svg+=`<!-- mode:${mode} grid:${gridMm.toFixed(2)}mm pen:${penMm}mm margin:${marginMm}mm rRatio:${rRatio.toFixed(2)} -->\n`;
-  svg+=`<rect width="${canvasWmm}" height="${canvasHmm}" fill="${bgColor}"/>\n`;
+  if(p.canvasShape==='circle')svg+=`<circle cx="${canvasWmm/2}" cy="${canvasHmm/2}" r="${canvasWmm/2}" fill="${bgColor}"/>\n`;
+  else svg+=`<rect width="${canvasWmm}" height="${canvasHmm}" fill="${bgColor}"/>\n`;
   channels.forEach(label=>{
     svg+=buildSvgGroup(dots[label],CHANNEL_BY_LABEL[label],p,visiblePlanes.has(label));
   });
@@ -987,7 +1031,14 @@ function buildSvg(){
 function redrawMainCanvas(){
   if(!lastResult)return;
   const {pw,ph,params:p,channels,offscreens}=lastResult;
-  ctx.fillStyle=p.bgColor;ctx.fillRect(0,0,pw,ph);
+  ctx.fillStyle=p.bgColor;
+  if(p.canvasShape==='circle'){
+    // 円の外側は透明のまま
+    ctx.clearRect(0,0,pw,ph);
+    ctx.beginPath();ctx.arc(pw/2,ph/2,pw/2,0,Math.PI*2);ctx.fill();
+  }else{
+    ctx.fillRect(0,0,pw,ph);
+  }
   channels.forEach(label=>{
     if(!visiblePlanes.has(label))return;
     ctx.save();ctx.globalCompositeOperation='multiply';ctx.drawImage(offscreens[label],0,0);ctx.restore();
@@ -1150,7 +1201,7 @@ function buildGcode(labels,s){
   };
 
   L.push('; Halftone for Pen Plotter');
-  L.push(`; mode:${p.mode} canvas:${p.canvasWmm}x${p.canvasHmm}mm grid:${p.gridMm.toFixed(2)}mm pen:${p.penMm}mm shape:${p.shape} rRatio:${p.rRatio.toFixed(2)}`);
+  L.push(`; mode:${p.mode} canvas:${p.canvasWmm}x${p.canvasHmm}mm${p.canvasShape==='circle'?' (circle)':''} grid:${p.gridMm.toFixed(2)}mm pen:${p.penMm}mm shape:${p.shape} rRatio:${p.rRatio.toFixed(2)}`);
   L.push(`; origin:${s.origin} flipY:${s.flipY?'on':'off'} pen:${s.penMode==='z'?`Z(up ${s.penUpZ} / down ${s.penDownZ})`:'cmd'} feed draw:${s.drawFeed} travel:${s.travelFeed||'G0'}`);
   L.push(`; channels: ${labels.join(' ')}`);
   L.push('G21 ; mm');
@@ -1252,7 +1303,8 @@ function render(){
   drawPreviews();
   updatePlaneButtons();
   updateGcodeButtons();
-  $('msg').textContent=`完成！ ${p.canvasWmm}×${p.canvasHmm}mm / グリッド:${p.gridMm.toFixed(2)}mm / ペン:${p.penMm}mm / 余白:${p.marginMm}mm`;
+  const sizeText=p.canvasShape==='circle'?`⌀${p.canvasWmm}mm`:`${p.canvasWmm}×${p.canvasHmm}mm`;
+  $('msg').textContent=`完成！ ${sizeText} / グリッド:${p.gridMm.toFixed(2)}mm / ペン:${p.penMm}mm / 余白:${p.marginMm}mm`;
   $('btn-dl-png').style.display='inline-block';$('btn-dl-svg').style.display='inline-block';
   clearDirty();
 }
