@@ -278,6 +278,9 @@ const ANGLE_DEFAULTS_BY_MODE = {
 const angleSavedByMode = structuredClone(ANGLE_DEFAULTS_BY_MODE);
 
 const MM_TO_PX = 3.7795 * 4;   // 384 DPI
+const PREVIEW_W_PX = 360;      // チャンネルプレビューの横幅（表示幅の約2倍で十分）
+const SRC_SAMPLE_MIN = 1024, SRC_SAMPLE_MAX = 4096;   // 画像サンプリング解像度の範囲
+const SVG_PRECISION = 3;       // SVG座標の小数桁（mm）
 
 // ============================================================
 // DOM参照
@@ -328,6 +331,7 @@ function triggerDownload(filename, href) {
   a.download = filename;
   a.href = href;
   a.click();
+  if (href.startsWith('blob:')) setTimeout(() => URL.revokeObjectURL(href), 1000);
 }
 
 // ============================================================
@@ -649,7 +653,12 @@ fileInput.addEventListener('change',()=>{if(fileInput.files[0])loadImage(fileInp
 function loadImage(file){
   const url=URL.createObjectURL(file);
   const img=new Image();
+  img.onerror=()=>{
+    URL.revokeObjectURL(url);
+    $('msg').textContent=`画像として読み込めませんでした: ${file.name}`;
+  };
   img.onload=()=>{
+    URL.revokeObjectURL(url);
     srcImage=img;
     $('msg').textContent=`${img.width}×${img.height}px の画像を読み込みました`;
     const fn=$('filename');fn.textContent=`📄 ${file.name}`;fn.style.display='block';
@@ -674,7 +683,9 @@ function rgbToCmyk(r,g,b,gcr){
 
 // クロップ範囲をサンプリング解像度に描き、CMYK配列（Float32Array, 4ch）に変換する
 function sampleSourceCmyk(p){
-  const srcW=1024,srcH=Math.round(1024*p.canvasHmm/p.canvasWmm);
+  // 通常は1024px。大きなキャンバスや細かいグリッドではドット1個あたり2px以上になるよう引き上げる
+  const srcW=Math.min(SRC_SAMPLE_MAX,Math.max(SRC_SAMPLE_MIN,Math.ceil(2*p.canvasWmm/p.gridMm)));
+  const srcH=Math.round(srcW*p.canvasHmm/p.canvasWmm);
   const tmpC=document.createElement('canvas');tmpC.width=srcW;tmpC.height=srcH;
   const tmpCtx=tmpC.getContext('2d');
   const cropRect=getCropRect();
@@ -748,6 +759,7 @@ function calcDots(cmyk,srcW,srcH,ch,p){
 // ============================================================
 // PNG描画
 // ============================================================
+// 1チャンネル分のドットをフル解像度で描く
 function drawDotsCanvas(oc,dots,ch,p){
   const {penMm,rRatio,shape}=p;
   oc.save();
@@ -772,21 +784,30 @@ function drawDotsCanvas(oc,dots,ch,p){
 // ============================================================
 // SVG生成
 // ============================================================
+// 座標を小数 SVG_PRECISION 桁に丸め、末尾の0を落とす（"12.500" → "12.5"）
+const fmt=v=>String(+v.toFixed(SVG_PRECISION));
+const pt=(x,y)=>`${fmt(x)},${fmt(y)}`;
+
+// アルキメデス螺旋を折れ線で近似する。角度ステップは弦誤差が許容値以下になるよう
+// 半径に応じて変える（θ = √(8ε/r)。中心付近ほど粗く、外側ほど細かく）
 function spiralPath(cx,cy,outerR,penMm,rRatio){
   const clampedR=spiralRadius(outerR,penMm,rRatio);
   if(clampedR<=0)return null;
   const turns=clampedR/penMm;
   if(turns<0.25)return null;
-  const steps=Math.max(32,Math.round(turns*64));
   const totalAngle=turns*2*Math.PI;
-  let path='';
-  for(let i=0;i<=steps;i++){
-    const t=i/steps,r=t*clampedR;
-    const x=(cx+r*Math.cos(t*totalAngle)).toFixed(3);
-    const y=(cy+r*Math.sin(t*totalAngle)).toFixed(3);
-    path+=i===0?`M${x},${y}`:`L${x},${y}`;
+  const k=penMm/(2*Math.PI);                 // r = k·φ（1周でペン幅ぶん広がる）
+  const chordErr=Math.max(0.005,penMm/20);   // 許容弦誤差: ペン幅の5%（最小5µm）
+  const maxStep=Math.PI/3;
+  const pts=[];
+  for(let phi=0;;){
+    const r=k*phi;
+    pts.push(pt(cx+r*Math.cos(phi),cy+r*Math.sin(phi)));
+    if(phi>=totalAngle)break;
+    const step=r>0?Math.min(maxStep,Math.sqrt(8*chordErr/r)):maxStep;
+    phi=Math.min(totalAngle,phi+step);
   }
-  return path;
+  return `M${pts[0]} L${pts.slice(1).join(' ')}`;
 }
 
 function squarePath(d,penMm){
@@ -796,15 +817,15 @@ function squarePath(d,penMm){
   const cx0=d.x-size/2+visualCap,cx1=d.x+size/2-visualCap;
   const cy0=d.y-size/2+penMm/2;
   if(lines===1){
-    return `M${cx0.toFixed(3)},${d.y.toFixed(3)} L${cx1.toFixed(3)},${d.y.toFixed(3)}`;
+    return `M${pt(cx0,d.y)} L${pt(cx1,d.y)}`;
   }
-  let p=`M${cx0.toFixed(3)},${cy0.toFixed(3)} L${cx1.toFixed(3)},${cy0.toFixed(3)}`;
+  const pts=[pt(cx1,cy0)];
   for(let i=1;i<lines;i++){
-    const yf=(cy0+i*penMm).toFixed(3);
-    p+=i%2===1?` L${cx1.toFixed(3)},${yf} L${cx0.toFixed(3)},${yf}`
-              :` L${cx0.toFixed(3)},${yf} L${cx1.toFixed(3)},${yf}`;
+    const y=cy0+i*penMm;
+    if(i%2===1)pts.push(pt(cx1,y),pt(cx0,y));
+    else       pts.push(pt(cx0,y),pt(cx1,y));
   }
-  return p;
+  return `M${pt(cx0,cy0)} L${pts.join(' ')}`;
 }
 
 // 1チャンネルをInkscapeレイヤー(<g>)として出力
@@ -835,23 +856,26 @@ function buildSvg(){
 // ============================================================
 // 表示・ダウンロード
 // ============================================================
+// 背景の上に表示中チャンネルをmultiply合成で重ねる。
+// チャンネルごとのオフスクリーンキャンバスを合成するので、表示切替は描き直しなしで速い
 function redrawMainCanvas(){
   if(!lastResult)return;
-  const {pw,ph,params,offscreens}=lastResult;
-  ctx.fillStyle=params.bgColor;ctx.fillRect(0,0,pw,ph);
-  CHANNELS.forEach(ch=>{
-    const off=offscreens[ch.label];
-    if(!visiblePlanes.has(ch.label)||!off)return;
-    ctx.save();ctx.globalCompositeOperation='multiply';ctx.drawImage(off,0,0);ctx.restore();
+  const {pw,ph,params:p,channels,offscreens}=lastResult;
+  ctx.fillStyle=p.bgColor;ctx.fillRect(0,0,pw,ph);
+  channels.forEach(label=>{
+    if(!visiblePlanes.has(label))return;
+    ctx.save();ctx.globalCompositeOperation='multiply';ctx.drawImage(offscreens[label],0,0);ctx.restore();
   });
 }
+// チャンネルプレビュー。フル解像度ではなく表示用に縮小して描く
 function drawPreviews(){
   const {pw,ph,offscreens}=lastResult;
+  const w=PREVIEW_W_PX,h=Math.round(w*ph/pw);
   CHANNELS.forEach(ch=>{
-    const pv=$(ch.previewId);pv.width=pw;pv.height=ph;
-    const pc=pv.getContext('2d');pc.fillStyle='#ffffff';pc.fillRect(0,0,pw,ph);
+    const pv=$(ch.previewId);pv.width=w;pv.height=h;
+    const pc=pv.getContext('2d');pc.fillStyle='#ffffff';pc.fillRect(0,0,w,h);
     const off=offscreens[ch.label];
-    if(off){pc.save();pc.globalCompositeOperation='multiply';pc.drawImage(off,0,0);pc.restore();}
+    if(off){pc.save();pc.globalCompositeOperation='multiply';pc.drawImage(off,0,0,w,h);pc.restore();}
   });
 }
 // 表示切替ボタン: 表示状態と、生成されていないチャンネル（モノクロ時のC/M/Yなど）を反映
@@ -885,7 +909,9 @@ function getDownloadFilename(ext){
 }
 $('btn-dl-png').addEventListener('click',()=>{
   const name=getDownloadFilename('png');
-  if(name)triggerDownload(name,mainCanvas.toDataURL('image/png'));
+  if(!name)return;
+  // toDataURL は巨大な文字列を同期生成するので toBlob を使う
+  mainCanvas.toBlob(blob=>triggerDownload(name,URL.createObjectURL(blob)),'image/png');
 });
 $('btn-dl-svg').addEventListener('click',()=>{
   const name=getDownloadFilename('svg');
