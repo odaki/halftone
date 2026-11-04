@@ -53,11 +53,15 @@
   .preset-btn.active { background: #0af !important; color: #000 !important; border-color: #0af !important; }
   .small-btn { padding: 2px 7px; font-size: 0.8rem; background: #333; color: #aaa; border: 1px solid #555; border-radius: 4px; cursor: pointer; }
   .small-btn:hover { background: #444; }
-  .ch-badge { display:inline-block; padding:1px 7px; border-radius:4px; font-size:0.8rem; font-weight:bold; vertical-align:middle; }
+  /* チャンネルのUI色（バッジと表示切替ボタンで共用） */
   .ch-C { background:#0b7fa0; color:#fff; }
   .ch-M { background:#a0005a; color:#fff; }
   .ch-Y { background:#a09000; color:#fff; }
   .ch-K { background:#555;    color:#fff; }
+  .ch-badge { display:inline-block; padding:1px 7px; border-radius:4px; font-size:0.8rem; font-weight:bold; vertical-align:middle; }
+  .plane-btn { padding:4px 14px; border-radius:6px; font-size:0.85rem; font-weight:bold; }
+  .plane-btn:not(.active) { opacity: 0.3; }
+  .plane-btn.absent { opacity: 0.12; pointer-events: none; }
   input[type=range]:focus, input[type=number]:focus, select:focus, button:focus { outline: 2px solid #0af; outline-offset: 2px; }
 </style>
 </head>
@@ -112,7 +116,7 @@
   </div>
   <div class="ctrl-group">
     <label>背景色</label>
-    <select id="r-bg">
+    <select id="i-bg">
       <option value="white">白（印刷用紙）</option>
       <option value="cream">クリーム</option>
     </select>
@@ -170,7 +174,7 @@
         <label><span class="ch-badge ch-C">C</span> 角度 <span id="v-ca">15</span>°</label>
         <div style="display:flex;gap:6px;align-items:center;">
           <input type="range" id="r-ca" min="0" max="90" value="15" style="flex:1;">
-          <button type="button" class="small-btn angle-reset" data-rid="r-ca" data-vid="v-ca" data-def="15" title="デフォルトに戻す">↺</button>
+          <button type="button" class="small-btn angle-reset" data-plane="C" title="デフォルトに戻す">↺</button>
         </div>
       </div>
 
@@ -178,7 +182,7 @@
         <label><span class="ch-badge ch-M">M</span> 角度 <span id="v-ma">45</span>°</label>
         <div style="display:flex;gap:6px;align-items:center;">
           <input type="range" id="r-ma" min="0" max="90" value="45" style="flex:1;">
-          <button type="button" class="small-btn angle-reset" data-rid="r-ma" data-vid="v-ma" data-def="45" title="デフォルトに戻す">↺</button>
+          <button type="button" class="small-btn angle-reset" data-plane="M" title="デフォルトに戻す">↺</button>
         </div>
       </div>
 
@@ -186,7 +190,7 @@
         <label><span class="ch-badge ch-Y">Y</span> 角度 <span id="v-ya">75</span>°</label>
         <div style="display:flex;gap:6px;align-items:center;">
           <input type="range" id="r-ya" min="0" max="90" value="75" style="flex:1;">
-          <button type="button" class="small-btn angle-reset" data-rid="r-ya" data-vid="v-ya" data-def="75" title="デフォルトに戻す">↺</button>
+          <button type="button" class="small-btn angle-reset" data-plane="Y" title="デフォルトに戻す">↺</button>
         </div>
       </div>
 
@@ -194,7 +198,7 @@
         <label><span class="ch-badge ch-K">K</span> 角度 <span id="v-ka">45</span>°</label>
         <div style="display:flex;gap:6px;align-items:center;">
           <input type="range" id="r-ka" min="0" max="90" value="45" style="flex:1;">
-          <button type="button" class="small-btn angle-reset" data-rid="r-ka" data-vid="v-ka" data-def="45" title="デフォルトに戻す">↺</button>
+          <button type="button" class="small-btn angle-reset" data-plane="K" title="デフォルトに戻す">↺</button>
         </div>
       </div>
 
@@ -233,10 +237,10 @@
 <div id="canvas-wrap">
   <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
     <span style="font-size:0.8rem;color:#888;align-self:center;">表示:</span>
-    <button class="plane-btn active" data-plane="C" style="padding:4px 14px;background:#0b7fa0;color:#fff;border-radius:6px;font-size:0.85rem;font-weight:bold;">C</button>
-    <button class="plane-btn active" data-plane="M" style="padding:4px 14px;background:#a0005a;color:#fff;border-radius:6px;font-size:0.85rem;font-weight:bold;">M</button>
-    <button class="plane-btn active" data-plane="Y" style="padding:4px 14px;background:#a09000;color:#fff;border-radius:6px;font-size:0.85rem;font-weight:bold;">Y</button>
-    <button class="plane-btn active" data-plane="K" style="padding:4px 14px;background:#555;color:#fff;border-radius:6px;font-size:0.85rem;font-weight:bold;">K</button>
+    <button class="plane-btn ch-C active" data-plane="C">C</button>
+    <button class="plane-btn ch-M active" data-plane="M">M</button>
+    <button class="plane-btn ch-Y active" data-plane="Y">Y</button>
+    <button class="plane-btn ch-K active" data-plane="K">K</button>
   </div>
   <canvas id="main-canvas"></canvas>
   <p id="msg">画像を選択して「適用」ボタンを押してください</p>
@@ -252,6 +256,32 @@
 <script>
 const $ = id => document.getElementById(id);
 
+// ============================================================
+// チャンネル定義（インク色・角度スライダー・プレビューの唯一の定義元）
+// ============================================================
+const CHANNELS = [
+  { label:'C', idx:0, rgb:[0,183,235], alpha:0.90, angleId:'r-ca', angleValueId:'v-ca', angleGroupId:'grp-ca', previewId:'c-canvas' },
+  { label:'M', idx:1, rgb:[236,0,140], alpha:0.90, angleId:'r-ma', angleValueId:'v-ma', angleGroupId:'grp-ma', previewId:'m-canvas' },
+  { label:'Y', idx:2, rgb:[255,242,0], alpha:0.85, angleId:'r-ya', angleValueId:'v-ya', angleGroupId:'grp-ya', previewId:'y-canvas' },
+  { label:'K', idx:3, rgb:[0,0,0],     alpha:0.95, angleId:'r-ka', angleValueId:'v-ka', angleGroupId:'grp-ka', previewId:'k-canvas' },
+];
+const CHANNEL_BY_LABEL = Object.fromEntries(CHANNELS.map(ch => [ch.label, ch]));
+// モードごとに生成するチャンネル
+const MODE_CHANNELS = { cmy:['C','M','Y'], cmyk:['C','M','Y','K'], mono:['K'] };
+// モードごとのデフォルト角度
+const ANGLE_DEFAULTS_BY_MODE = {
+  cmyk: { C:15, M:75, Y: 0, K:45 },
+  cmy:  { C:15, M:45, Y:75, K:45 },
+  mono: { C:15, M:45, Y:75, K:45 },
+};
+// モードごとの保存済み角度（切替時に保存・復元）
+const angleSavedByMode = structuredClone(ANGLE_DEFAULTS_BY_MODE);
+
+const MM_TO_PX = 3.7795 * 4;   // 384 DPI
+
+// ============================================================
+// DOM参照
+// ============================================================
 const dropZone     = $('drop-zone');
 const fileInput    = $('file-input');
 const mainCanvas   = $('main-canvas');
@@ -263,140 +293,109 @@ const cropOverlayEl= $('crop-overlay');
 const cropCtx      = cropCanvasEl.getContext('2d');
 const overlayCtx   = cropOverlayEl.getContext('2d');
 const rZoom = $('r-zoom'), vZoom = $('v-zoom');
-const iPen  = $('i-pen'), iCW = $('i-cw'), iCH = $('i-ch');
+const iMode = $('i-mode'), iShape = $('i-shape'), iBg = $('i-bg');
+const iPen  = $('i-pen'), iCW = $('i-cw'), iCH = $('i-ch'), iMargin = $('i-margin');
 const iUseK = $('i-use-k');
 const rGrid = $('r-grid'), vGrid = $('v-grid'), hintGrid = $('hint-grid');
 const rRadius = $('r-radius'), vRadius = $('v-radius');
 const rGcr = $('r-gcr'), vGcr = $('v-gcr');
-const gcrGroup  = $('gcr-group');
 const btnRender = $('btn-render');
 const dirtyMsg  = $('dirty-msg');
 
+// ============================================================
+// 状態
+// ============================================================
 let srcImage = null;
 let visiblePlanes = new Set(['C','M','Y','K']);
-let lastGeneratedLabels = new Set(), lastFileBase = '';
-let lastDots = {}, lastChDefs = [], lastSvgParams = {};
-
-function getEffectivePlanesStr() {
-  const str = ['C','M','Y','K'].filter(p => lastGeneratedLabels.has(p) && visiblePlanes.has(p)).join('');
-  return str || 'none';
-}
-let lastChOffscreens = {}, lastBgColor = '#ffffff', lastPW = 0, lastPH = 0;
+// 最後に適用した結果: { params, channels, dots, offscreens, pw, ph, fileBase }
+let lastResult = null;
 let crop = { ox:0, oy:0, zoom:1 };
 let drag = null;
 
+// ============================================================
+// 共通ユーティリティ
+// ============================================================
 function setGroupEnabled(id, enabled) {
   const el = $(id);
   if (!el) return;
   el.style.opacity = enabled ? '1' : '0.4';
   el.style.pointerEvents = enabled ? '' : 'none';
 }
+const numValue = (el, def) => parseFloat(el.value) || def;
 
-const ANGLE_DEFAULTS_BY_MODE = {
-  cmyk: { 'r-ca':15, 'r-ma':75, 'r-ya': 0, 'r-ka':45 },
-  cmy:  { 'r-ca':15, 'r-ma':45, 'r-ya':75, 'r-ka':45 },
-  mono: { 'r-ca':15, 'r-ma':45, 'r-ya':75, 'r-ka':45 },
-};
-const angleSavedByMode = {
-  cmyk: { 'r-ca':15, 'r-ma':75, 'r-ya': 0, 'r-ka':45 },
-  cmy:  { 'r-ca':15, 'r-ma':45, 'r-ya':75, 'r-ka':45 },
-  mono: { 'r-ca':15, 'r-ma':45, 'r-ya':75, 'r-ka':45 },
-};
+function triggerDownload(filename, href) {
+  const a = document.createElement('a');
+  a.download = filename;
+  a.href = href;
+  a.click();
+}
 
+// ============================================================
+// モード・角度管理
+// ============================================================
 let prevMode = 'cmy';
 
 function getCurrentMode() {
-  if ($('i-mode').value === 'mono') return 'mono';
+  if (iMode.value === 'mono') return 'mono';
   return iUseK.checked ? 'cmyk' : 'cmy';
 }
-
+function getAngle(ch) { return parseInt($(ch.angleId).value); }
+function setAngle(ch, deg) {
+  $(ch.angleId).value = deg;
+  $(ch.angleValueId).textContent = deg;
+}
 function saveAngles(mode) {
-  const ca=$('r-ca'),ma=$('r-ma'),ya=$('r-ya'),ka=$('r-ka');
-  if (!ca||!ma||!ya||!ka) return;
-  angleSavedByMode[mode] = {
-    'r-ca':parseInt(ca.value), 'r-ma':parseInt(ma.value),
-    'r-ya':parseInt(ya.value), 'r-ka':parseInt(ka.value),
-  };
+  CHANNELS.forEach(ch => { angleSavedByMode[mode][ch.label] = getAngle(ch); });
 }
-
 function restoreAngles(mode) {
-  const saved = angleSavedByMode[mode];
-  [['r-ca','v-ca'],['r-ma','v-ma'],['r-ya','v-ya'],['r-ka','v-ka']].forEach(([rid,vid])=>{
-    const slider=$(rid), label=$(vid);
-    if (!slider||!label) return;
-    slider.value = saved[rid];
-    label.textContent = saved[rid];
-  });
+  CHANNELS.forEach(ch => setAngle(ch, angleSavedByMode[mode][ch.label]));
 }
-
 function switchMode(newMode) {
   if (newMode === prevMode) return;
   saveAngles(prevMode);
   restoreAngles(newMode);
   prevMode = newMode;
 }
-
 function updateAngleSliderStates() {
-  const mode = getCurrentMode();
-  setGroupEnabled('grp-ca', mode !== 'mono');
-  setGroupEnabled('grp-ma', mode !== 'mono');
-  setGroupEnabled('grp-ya', mode !== 'mono');
-  setGroupEnabled('grp-ka', mode !== 'cmy');
+  const active = new Set(MODE_CHANNELS[getCurrentMode()]);
+  CHANNELS.forEach(ch => setGroupEnabled(ch.angleGroupId, active.has(ch.label)));
 }
-
-$('i-advanced').addEventListener('change', function() {
-  $('advanced-group').style.display = this.checked ? 'block' : 'none';
-});
-
 function updateAdvancedState() {
-  const isMono = $('i-mode').value === 'mono';
+  const isMono = iMode.value === 'mono';
   setGroupEnabled('grp-usek', !isMono);
   setGroupEnabled('gcr-group', !isMono && iUseK.checked);
 }
-
 function onModeChange() {
   updateAdvancedState();
   switchMode(getCurrentMode());
   updateAngleSliderStates();
 }
-$('i-mode').addEventListener('change', onModeChange);
+function resetAngle(ch) {
+  setAngle(ch, ANGLE_DEFAULTS_BY_MODE[getCurrentMode()][ch.label]);
+}
+
+$('i-advanced').addEventListener('change', function() {
+  $('advanced-group').style.display = this.checked ? 'block' : 'none';
+});
+iMode.addEventListener('change', onModeChange);
+iUseK.addEventListener('change', onModeChange);
 
 function getGcr() { return iUseK.checked ? parseInt(rGcr.value)/20 : 0; }
 rGcr.addEventListener('input', ()=>{ vGcr.textContent=(parseInt(rGcr.value)/20).toFixed(2); });
-iUseK.addEventListener('change', ()=>{
-  setGroupEnabled('gcr-group', iUseK.checked && $('i-mode').value !== 'mono');
-  switchMode(getCurrentMode());
-  updateAngleSliderStates();
-});
 
-function resetAllAngles() {
-  const mode = getCurrentMode();
-  const defs = ANGLE_DEFAULTS_BY_MODE[mode];
-  [['r-ca','v-ca'],['r-ma','v-ma'],['r-ya','v-ya'],['r-ka','v-ka']].forEach(([rid,vid])=>{
-    const slider=$(rid), label=$(vid);
-    if (!slider||!label) return;
-    slider.value = defs[rid];
-    label.textContent = defs[rid];
-  });
-}
 document.querySelectorAll('.angle-reset').forEach(btn=>{
-  btn.onclick = function() {
-    const mode = getCurrentMode();
-    const defs = ANGLE_DEFAULTS_BY_MODE[mode];
-    const slider=$(this.dataset.rid), label=$(this.dataset.vid);
-    if (!slider||!label) return;
-    slider.value = defs[this.dataset.rid];
-    label.textContent = defs[this.dataset.rid];
-  };
+  btn.addEventListener('click', ()=>resetAngle(CHANNEL_BY_LABEL[btn.dataset.plane]));
 });
-$('btn-reset-angles').onclick = resetAllAngles;
-
-[['r-ca','v-ca'],['r-ma','v-ma'],['r-ya','v-ya'],['r-ka','v-ka']].forEach(([rid,vid])=>{
-  $(rid).addEventListener('input', ()=>{ $(vid).textContent=$(rid).value; });
+$('btn-reset-angles').addEventListener('click', ()=>CHANNELS.forEach(resetAngle));
+CHANNELS.forEach(ch=>{
+  $(ch.angleId).addEventListener('input', ()=>{ $(ch.angleValueId).textContent=$(ch.angleId).value; });
 });
 
+// ============================================================
+// グリッド間隔・ドット半径比スライダー
+// ============================================================
 function getGridRange() {
-  const p=parseFloat(iPen.value)||0.2;
+  const p=numValue(iPen,0.2);
   return { minMm:p*2, maxMm:p*20 };
 }
 function getGridMm() {
@@ -406,7 +405,7 @@ function getGridMm() {
   return minMm+t*(maxMm-minMm);
 }
 function updateGridSliderStep() {
-  const p=parseFloat(iPen.value)||0.2;
+  const p=numValue(iPen,0.2);
   const {minMm,maxMm}=getGridRange();
   const numSteps=Math.max(10,Math.round((maxMm-minMm)/p));
   const prevMax=parseInt(rGrid.getAttribute('max'))||numSteps;
@@ -416,10 +415,10 @@ function updateGridSliderStep() {
 }
 function updateGridLabel() {
   const mm=Math.max(0.001,getGridMm());
-  const p=parseFloat(iPen.value)||0.2;
+  const p=numValue(iPen,0.2);
   vGrid.textContent=mm.toFixed(2);
-  const cols=Math.max(0,Math.floor((parseFloat(iCW.value)||90)/mm));
-  const rows=Math.max(0,Math.floor((parseFloat(iCH.value)||90)/mm));
+  const cols=Math.max(0,Math.floor(numValue(iCW,90)/mm));
+  const rows=Math.max(0,Math.floor(numValue(iCH,90)/mm));
   hintGrid.textContent=`最小ドット径: ${(p*2).toFixed(2)}mm / ステップ幅: 約${p.toFixed(2)}mm / 概算ドット数/面: 約${cols*rows}`;
 }
 function gridMmToSlider(mm) {
@@ -433,8 +432,7 @@ rGrid.addEventListener('input',()=>{
 });
 document.querySelectorAll('[data-grid-mult]').forEach(btn=>{
   btn.addEventListener('click',()=>{
-    const p=parseFloat(iPen.value)||0.2;
-    rGrid.value=gridMmToSlider(p*parseFloat(btn.dataset.gridMult));
+    rGrid.value=gridMmToSlider(numValue(iPen,0.2)*parseFloat(btn.dataset.gridMult));
     updateGridLabel();
     document.querySelectorAll('[data-grid-mult]').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
@@ -462,26 +460,40 @@ iCW.addEventListener('input',()=>{ clampCrop(); drawCropPreview(); updateGridSli
 iCH.addEventListener('input',()=>{ clampCrop(); drawCropPreview(); updateGridSliderStep(); updateGridLabel(); });
 iPen.addEventListener('input',()=>{ updateGridSliderStep(); updateGridLabel(); });
 
-[{id:'i-cw',def:90,min:10,max:1000},{id:'i-ch',def:90,min:10,max:1000},
- {id:'i-margin',def:2,min:-50,max:50},{id:'i-pen',def:0.2,min:0.1,max:1.0}
-].forEach(({id,def,min,max})=>{
-  $(id).addEventListener('blur',function(){
+[{el:iCW,def:90,min:10,max:1000},{el:iCH,def:90,min:10,max:1000},
+ {el:iMargin,def:2,min:-50,max:50},{el:iPen,def:0.2,min:0.1,max:1.0}
+].forEach(({el,def,min,max})=>{
+  el.addEventListener('blur',function(){
     let v=this.value.replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/．/g,'.').replace(/－/g,'-');
     const n=parseFloat(v);
     this.value=isNaN(n)?def:Math.min(max,Math.max(min,n));
   });
 });
 
+// ============================================================
+// パラメータ読み取り・ダーティフラグ
+// ============================================================
+// UIから描画パラメータを1つのオブジェクトにまとめて読む（render とスナップショットで共用）
+function readParams() {
+  const gridMm=getGridMm(), rRatio=getRadiusRatio();
+  const angles={};
+  CHANNELS.forEach(ch=>{ angles[ch.label]=getAngle(ch); });
+  return {
+    mode:      getCurrentMode(),
+    canvasWmm: numValue(iCW,90),
+    canvasHmm: numValue(iCH,90),
+    marginMm:  numValue(iMargin,0),
+    penMm:     numValue(iPen,0.2),
+    shape:     iShape.value,
+    bgColor:   iBg.value==='cream'?'#faf6e8':'#ffffff',
+    gridMm, rRatio,
+    maxRadMm:  gridMm*rRatio*0.5,
+    gcr:       getGcr(),
+    angles,
+  };
+}
 function getParamSnapshot() {
-  return [
-    iCW.value,iCH.value,$('i-margin').value,$('r-bg').value,
-    $('i-mode').value,iPen.value,$('i-shape').value,
-    getGridMm().toFixed(3),rRadius.value,
-    $('r-ca').value,$('r-ma').value,$('r-ya').value,$('r-ka').value,
-    iUseK.checked,rGcr.value,
-    crop.ox.toFixed(3),crop.oy.toFixed(3),crop.zoom.toFixed(3),
-    srcImage?srcImage.src:'',
-  ].join('|');
+  return JSON.stringify([readParams(),crop.ox.toFixed(3),crop.oy.toFixed(3),crop.zoom.toFixed(3),srcImage?srcImage.src:'']);
 }
 let lastAppliedSnapshot=null;
 function updateRenderBtn(){
@@ -493,15 +505,13 @@ function updateRenderBtn(){
 function clearDirty(){ lastAppliedSnapshot=getParamSnapshot(); updateRenderBtn(); }
 setInterval(updateRenderBtn,200);
 
+// ============================================================
+// 初期化
+// ============================================================
 updateAdvancedState();
 updateAngleSliderStates();
 updateGridSliderStep();
-(()=>{
-  const p=parseFloat(iPen.value)||0.2;
-  const {minMm,maxMm}=getGridRange();
-  const ratio=Math.max(0,Math.min(1,(p*5-minMm)/(maxMm-minMm)));
-  rGrid.value=Math.round(ratio*parseInt(rGrid.getAttribute('max')));
-})();
+rGrid.value=gridMmToSlider(numValue(iPen,0.2)*5);
 updateGridLabel();
 updateRadiusLabel();
 vGcr.textContent=(parseInt(rGcr.value)/20).toFixed(2);
@@ -515,8 +525,11 @@ document.querySelectorAll('input[type=number],input[type=checkbox],select,button
   el.addEventListener('click',()=>el.focus());
 });
 
+// ============================================================
+// クロップ
+// ============================================================
 function getFrameRect(W,H){
-  const aspect=(parseFloat(iCW.value)||90)/(parseFloat(iCH.value)||90);
+  const aspect=numValue(iCW,90)/numValue(iCH,90);
   let fw,fh;
   if(W/H>aspect){fh=H;fw=fh*aspect;}else{fw=W;fh=fw/aspect;}
   return{fx:(W-fw)/2,fy:(H-fh)/2,fw,fh};
@@ -625,6 +638,9 @@ window.addEventListener('touchmove',e=>{
 window.addEventListener('touchend',()=>{drag=null;});
 window.addEventListener('resize',()=>{if(srcImage)resizeCropCanvas();});
 
+// ============================================================
+// 画像読み込み
+// ============================================================
 dropZone.addEventListener('click',()=>fileInput.click());
 dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('hover');});
 dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('hover'));
@@ -643,6 +659,9 @@ function loadImage(file){
   img.src=url;
 }
 
+// ============================================================
+// 色変換
+// ============================================================
 function rgbToCmyk(r,g,b,gcr){
   r/=255;g/=255;b/=255;
   if(gcr===0)return[Math.max(0,Math.min(1,1-r)),Math.max(0,Math.min(1,1-g)),Math.max(0,Math.min(1,1-b)),0];
@@ -653,17 +672,60 @@ function rgbToCmyk(r,g,b,gcr){
   return[Math.max(0,Math.min(1,c)),Math.max(0,Math.min(1,m)),Math.max(0,Math.min(1,y)),Math.max(0,Math.min(1,k))];
 }
 
-function calcDots(W,H,cmykArr,srcW,srcH,chIdx,angleDeg,gridMm,maxRadMm,penMm,marginMm){
-  const mg=marginMm||0;
+// クロップ範囲をサンプリング解像度に描き、CMYK配列（Float32Array, 4ch）に変換する
+function sampleSourceCmyk(p){
+  const srcW=1024,srcH=Math.round(1024*p.canvasHmm/p.canvasWmm);
+  const tmpC=document.createElement('canvas');tmpC.width=srcW;tmpC.height=srcH;
+  const tmpCtx=tmpC.getContext('2d');
+  const cropRect=getCropRect();
+  if(cropRect)tmpCtx.drawImage(srcImage,cropRect.sx,cropRect.sy,cropRect.sw,cropRect.sh,0,0,srcW,srcH);
+  else tmpCtx.drawImage(srcImage,0,0,srcW,srcH);
+  const src=tmpCtx.getImageData(0,0,srcW,srcH).data;
+  const cmyk=new Float32Array(srcW*srcH*4);
+  for(let i=0;i<srcW*srcH;i++){
+    const r=src[i*4],g=src[i*4+1],b=src[i*4+2];
+    if(p.mode==='mono'){
+      cmyk[i*4+3]=(1-(0.299*r+0.587*g+0.114*b)/255);
+    }else{
+      const[c,m,y,k]=rgbToCmyk(r,g,b,p.gcr);
+      cmyk[i*4]=c;cmyk[i*4+1]=m;cmyk[i*4+2]=y;cmyk[i*4+3]=k;
+    }
+  }
+  return {cmyk,srcW,srcH};
+}
+
+// ============================================================
+// ドット形状（PNG/SVG共通の幾何計算）
+// ============================================================
+// 円ドット: 螺旋の中心線が到達する半径（補正係数を掛け、物理的外縁がouterRを超えないようクランプ）
+function spiralRadius(outerR,penMm,rRatio){
+  const correction=(2/Math.sqrt(Math.PI))/rRatio;
+  return Math.min(outerR*correction,outerR-penMm/2);
+}
+// 正方形ドット: ジグザグ走査の行数（ペン幅の倍数に切り捨て）
+function squareLines(r,penMm){
+  return Math.max(1,Math.floor((r*2)/penMm));
+}
+
+// ============================================================
+// ハーフトーン計算
+// ============================================================
+// 1チャンネル分のドット配列 [{x,y,r}] をmm単位で返す
+function calcDots(cmyk,srcW,srcH,ch,p){
+  const {canvasWmm:W,canvasHmm:H,marginMm:mg,gridMm,maxRadMm,penMm}=p;
   const innerL=mg,innerT=mg,innerR=W-mg,innerB=H-mg;
-  const cos=Math.cos(angleDeg*Math.PI/180),sin=Math.sin(angleDeg*Math.PI/180);
+  const angle=p.angles[ch.label]*Math.PI/180;
+  const cos=Math.cos(angle),sin=Math.sin(angle);
   // 描画領域の余りを均等分配してグリッド原点をオフセット
-  const drawW2=innerR-innerL, drawH2=innerB-innerT;
-  // 走査範囲は描画領域（負の余白ではキャンバスより広い）の対角線で決める
-  const diag=Math.sqrt(drawW2*drawW2+drawH2*drawH2);
-  const remX=drawW2%gridMm, remY=drawH2%gridMm;
+  const drawW=innerR-innerL, drawH=innerB-innerT;
+  const remX=drawW%gridMm, remY=drawH%gridMm;
   const originX=innerL+remX/2, originY=innerT+remY/2;
+  // 走査範囲は描画領域（負の余白ではキャンバスより広い）の対角線で決める
+  const diag=Math.sqrt(drawW*drawW+drawH*drawH);
   const steps=Math.ceil(diag/gridMm)+2;
+  // 画像サンプリング範囲（負の余白ではキャンバス全体に画像を当てる）
+  const dataL=Math.max(0,mg),dataT=Math.max(0,mg);
+  const dataW=(W-2*Math.max(0,mg))||1,dataH=(H-2*Math.max(0,mg))||1;
   const dots=[];
   for(let gy=-steps;gy<=steps;gy++){
     for(let gx=-steps;gx<=steps;gx++){
@@ -671,12 +733,9 @@ function calcDots(W,H,cmykArr,srcW,srcH,chIdx,angleDeg,gridMm,maxRadMm,penMm,mar
       const wx=originX+lx*cos-ly*sin;
       const wy=originY+lx*sin+ly*cos;
       if(wx<innerL||wx>innerR||wy<innerT||wy>innerB)continue;
-      const dataL=Math.max(0,mg),dataT=Math.max(0,mg);
-      const dataR=W-Math.max(0,mg),dataB=H-Math.max(0,mg);
-      const drawW=dataR-dataL||1,drawH=dataB-dataT||1;
-      const px=Math.max(0,Math.min(srcW-1,Math.round((wx-dataL)/drawW*srcW)));
-      const py=Math.max(0,Math.min(srcH-1,Math.round((wy-dataT)/drawH*srcH)));
-      const val=cmykArr[(py*srcW+px)*4+chIdx];
+      const px=Math.max(0,Math.min(srcW-1,Math.round((wx-dataL)/dataW*srcW)));
+      const py=Math.max(0,Math.min(srcH-1,Math.round((wy-dataT)/dataH*srcH)));
+      const val=cmyk[(py*srcW+px)*4+ch.idx];
       if(val<0.01)continue;
       const rDraw=Math.max(penMm/2,maxRadMm*val+penMm/2);
       if(wx-rDraw<innerL||wx+rDraw>innerR||wy-rDraw<innerT||wy+rDraw>innerB)continue;
@@ -686,30 +745,35 @@ function calcDots(W,H,cmykArr,srcW,srcH,chIdx,angleDeg,gridMm,maxRadMm,penMm,mar
   return dots;
 }
 
-function drawDotsCanvas(oc,dots,mmToPx,r,g,b,alpha,shape,penMm,rRatio,canvasWmm,canvasHmm,marginMm){
+// ============================================================
+// PNG描画
+// ============================================================
+function drawDotsCanvas(oc,dots,ch,p){
+  const {penMm,rRatio,shape}=p;
   oc.save();
-  if(marginMm<0){
-    oc.beginPath();oc.rect(0,0,canvasWmm*mmToPx,canvasHmm*mmToPx);oc.clip();
+  if(p.marginMm<0){
+    oc.beginPath();oc.rect(0,0,p.canvasWmm*MM_TO_PX,p.canvasHmm*MM_TO_PX);oc.clip();
   }
-  oc.fillStyle=`rgba(${r},${g},${b},${alpha})`;
+  const [r,g,b]=ch.rgb;
+  oc.fillStyle=`rgba(${r},${g},${b},${ch.alpha})`;
   dots.forEach(d=>{
-    const cx=d.x*mmToPx,cy=d.y*mmToPx;
+    const cx=d.x*MM_TO_PX,cy=d.y*MM_TO_PX;
     if(shape==='square'){
-      const lines=Math.max(1,Math.floor((d.r*2)/penMm));
-      const size=lines*penMm*mmToPx;
+      const size=squareLines(d.r,penMm)*penMm*MM_TO_PX;
       oc.fillRect(cx-size/2,cy-size/2,size,size);
     }else{
-      const correction=(2/Math.sqrt(Math.PI))/rRatio;
-      const clampedR=Math.min(d.r*correction,d.r-penMm/2);
-      if(clampedR>0){oc.beginPath();oc.arc(cx,cy,clampedR*mmToPx,0,Math.PI*2);oc.fill();}
+      const sr=spiralRadius(d.r,penMm,rRatio);
+      if(sr>0){oc.beginPath();oc.arc(cx,cy,sr*MM_TO_PX,0,Math.PI*2);oc.fill();}
     }
   });
   oc.restore();
 }
 
+// ============================================================
+// SVG生成
+// ============================================================
 function spiralPath(cx,cy,outerR,penMm,rRatio){
-  const correction=(2/Math.sqrt(Math.PI))/rRatio;
-  const clampedR=Math.min(outerR*correction,outerR-penMm/2);
+  const clampedR=spiralRadius(outerR,penMm,rRatio);
   if(clampedR<=0)return null;
   const turns=clampedR/penMm;
   if(turns<0.25)return null;
@@ -725,165 +789,138 @@ function spiralPath(cx,cy,outerR,penMm,rRatio){
   return path;
 }
 
-function buildSvgGroup(dots,r,g,b,label,alpha,shape,penMm,rRatio,visible){
+function squarePath(d,penMm){
+  const lines=squareLines(d.r,penMm);
+  const size=lines*penMm;
+  const visualCap=(penMm/2)*(Math.PI/4);   // round linecapの視覚的張り出し補正
+  const cx0=d.x-size/2+visualCap,cx1=d.x+size/2-visualCap;
+  const cy0=d.y-size/2+penMm/2;
+  if(lines===1){
+    return `M${cx0.toFixed(3)},${d.y.toFixed(3)} L${cx1.toFixed(3)},${d.y.toFixed(3)}`;
+  }
+  let p=`M${cx0.toFixed(3)},${cy0.toFixed(3)} L${cx1.toFixed(3)},${cy0.toFixed(3)}`;
+  for(let i=1;i<lines;i++){
+    const yf=(cy0+i*penMm).toFixed(3);
+    p+=i%2===1?` L${cx1.toFixed(3)},${yf} L${cx0.toFixed(3)},${yf}`
+              :` L${cx0.toFixed(3)},${yf} L${cx1.toFixed(3)},${yf}`;
+  }
+  return p;
+}
+
+// 1チャンネルをInkscapeレイヤー(<g>)として出力
+function buildSvgGroup(dots,ch,p,visible){
+  const {penMm,rRatio,shape}=p;
+  const [r,g,b]=ch.rgb;
   const disp=visible?'display:inline':'display:none';
-  let s=`<g id="ch-${label}" inkscape:label="${label}" inkscape:groupmode="layer" fill="none" stroke="rgb(${r},${g},${b})" stroke-width="${penMm.toFixed(3)}" stroke-opacity="${alpha.toFixed(3)}" stroke-linecap="round" style="${disp};mix-blend-mode:multiply">\n`;
+  let s=`<g id="ch-${ch.label}" inkscape:label="${ch.label}" inkscape:groupmode="layer" fill="none" stroke="rgb(${r},${g},${b})" stroke-width="${penMm.toFixed(3)}" stroke-opacity="${ch.alpha.toFixed(3)}" stroke-linecap="round" style="${disp};mix-blend-mode:multiply">\n`;
   dots.forEach(d=>{
-    if(shape==='square'){
-      const lines=Math.max(1,Math.floor((d.r*2)/penMm));
-      const size=lines*penMm;
-      const visualCap=(penMm/2)*(Math.PI/4);
-      const cx0=d.x-size/2+visualCap,cx1=d.x+size/2-visualCap;
-      const cy0=d.y-size/2+penMm/2;
-      if(lines===1){
-        s+=`<path d="M${cx0.toFixed(3)},${d.y.toFixed(3)} L${cx1.toFixed(3)},${d.y.toFixed(3)}"/>\n`;
-      }else{
-        let p=`M${cx0.toFixed(3)},${cy0.toFixed(3)} L${cx1.toFixed(3)},${cy0.toFixed(3)}`;
-        for(let i=1;i<lines;i++){
-          const yf=(cy0+i*penMm).toFixed(3);
-          p+=i%2===1?` L${cx1.toFixed(3)},${yf} L${cx0.toFixed(3)},${yf}`
-                    :` L${cx0.toFixed(3)},${yf} L${cx1.toFixed(3)},${yf}`;
-        }
-        s+=`<path d="${p}"/>\n`;
-      }
-    }else{
-      const p=spiralPath(d.x,d.y,d.r,penMm,rRatio);
-      if(p)s+=`<path d="${p}"/>\n`;
-    }
+    const path=shape==='square'?squarePath(d,penMm):spiralPath(d.x,d.y,d.r,penMm,rRatio);
+    if(path)s+=`<path d="${path}"/>\n`;
   });
   return s+`</g>\n`;
 }
 
+function buildSvg(){
+  const {params:p,channels,dots}=lastResult;
+  const {canvasWmm,canvasHmm,bgColor,gridMm,penMm,marginMm,rRatio,mode}=p;
+  let svg=`<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${canvasWmm}mm" height="${canvasHmm}mm" viewBox="0 0 ${canvasWmm} ${canvasHmm}">\n`;
+  svg+=`<!-- mode:${mode} grid:${gridMm.toFixed(2)}mm pen:${penMm}mm margin:${marginMm}mm rRatio:${rRatio.toFixed(2)} -->\n`;
+  svg+=`<rect width="${canvasWmm}" height="${canvasHmm}" fill="${bgColor}"/>\n`;
+  channels.forEach(label=>{
+    svg+=buildSvgGroup(dots[label],CHANNEL_BY_LABEL[label],p,visiblePlanes.has(label));
+  });
+  return svg+`</svg>`;
+}
+
+// ============================================================
+// 表示・ダウンロード
+// ============================================================
 function redrawMainCanvas(){
-  if(!lastPW)return;
-  ctx.fillStyle=lastBgColor;ctx.fillRect(0,0,lastPW,lastPH);
-  ['C','M','Y','K'].forEach(label=>{
-    if(!visiblePlanes.has(label)||!lastChOffscreens[label])return;
-    ctx.save();ctx.globalCompositeOperation='multiply';ctx.drawImage(lastChOffscreens[label],0,0);ctx.restore();
+  if(!lastResult)return;
+  const {pw,ph,params,offscreens}=lastResult;
+  ctx.fillStyle=params.bgColor;ctx.fillRect(0,0,pw,ph);
+  CHANNELS.forEach(ch=>{
+    const off=offscreens[ch.label];
+    if(!visiblePlanes.has(ch.label)||!off)return;
+    ctx.save();ctx.globalCompositeOperation='multiply';ctx.drawImage(off,0,0);ctx.restore();
+  });
+}
+function drawPreviews(){
+  const {pw,ph,offscreens}=lastResult;
+  CHANNELS.forEach(ch=>{
+    const pv=$(ch.previewId);pv.width=pw;pv.height=ph;
+    const pc=pv.getContext('2d');pc.fillStyle='#ffffff';pc.fillRect(0,0,pw,ph);
+    const off=offscreens[ch.label];
+    if(off){pc.save();pc.globalCompositeOperation='multiply';pc.drawImage(off,0,0);pc.restore();}
+  });
+}
+// 表示切替ボタン: 表示状態と、生成されていないチャンネル（モノクロ時のC/M/Yなど）を反映
+function updatePlaneButtons(){
+  document.querySelectorAll('.plane-btn').forEach(btn=>{
+    const label=btn.dataset.plane;
+    btn.classList.toggle('active',visiblePlanes.has(label));
+    btn.classList.toggle('absent',!!lastResult&&!lastResult.channels.includes(label));
   });
 }
 document.querySelectorAll('.plane-btn').forEach(btn=>{
   btn.addEventListener('click',()=>{
-    const p=btn.dataset.plane;
-    if(visiblePlanes.has(p)){visiblePlanes.delete(p);btn.style.opacity='0.3';}
-    else{visiblePlanes.add(p);btn.style.opacity='1';}
+    const label=btn.dataset.plane;
+    if(visiblePlanes.has(label))visiblePlanes.delete(label);else visiblePlanes.add(label);
+    updatePlaneButtons();
     redrawMainCanvas();
   });
 });
 
-$('btn-render').addEventListener('click',render);
-function getDownloadSuffix(){
-  const isMono=lastSvgParams.mode==='mono';
+// 生成済みかつ表示中のチャンネル（ファイル名のsuffixに使う）
+function getEffectivePlanesStr(){
+  return CHANNELS.filter(ch=>lastResult.channels.includes(ch.label)&&visiblePlanes.has(ch.label)).map(ch=>ch.label).join('')||'none';
+}
+// ダウンロードファイル名を返す。全プレーン非表示で確認がキャンセルされた場合は null
+function getDownloadFilename(ext){
+  if(!lastResult)return null;
   const planesStr=getEffectivePlanesStr();
-  return{planesStr, suffix:isMono?'':`_${planesStr}`};
+  if(planesStr==='none'&&!confirm('すべてのプレーンが非表示です。\n背景のみの空白画像が保存されます。続行しますか？'))return null;
+  const suffix=lastResult.params.mode==='mono'?'':`_${planesStr}`;
+  return `${lastResult.fileBase}${suffix}.${ext}`;
 }
 $('btn-dl-png').addEventListener('click',()=>{
-  if(!lastFileBase)return;
-  const{planesStr,suffix}=getDownloadSuffix();
-  if(planesStr==='none'&&!confirm('すべてのプレーンが非表示です。\n背景のみの空白画像が保存されます。続行しますか？'))return;
-  const a=document.createElement('a');
-  a.download=`${lastFileBase}${suffix}.png`;
-  a.href=mainCanvas.toDataURL('image/png');a.click();
+  const name=getDownloadFilename('png');
+  if(name)triggerDownload(name,mainCanvas.toDataURL('image/png'));
 });
 $('btn-dl-svg').addEventListener('click',()=>{
-  if(!lastChDefs.length)return;
-  const{planesStr,suffix}=getDownloadSuffix();
-  if(planesStr==='none'&&!confirm('すべてのプレーンが非表示です。\n背景のみの空白画像が保存されます。続行しますか？'))return;
-  const {canvasWmm,canvasHmm,bgColor,gridMm,penMm,marginMm,rRatio,shape,mode}=lastSvgParams;
-  let svg=`<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${canvasWmm}mm" height="${canvasHmm}mm" viewBox="0 0 ${canvasWmm} ${canvasHmm}">\n`;
-  svg+=`<!-- mode:${mode} grid:${gridMm.toFixed(2)}mm pen:${penMm}mm margin:${marginMm}mm rRatio:${rRatio.toFixed(2)} -->\n`;
-  svg+=`<rect width="${canvasWmm}" height="${canvasHmm}" fill="${bgColor}"/>\n`;
-  lastChDefs.forEach(ch=>{
-    svg+=buildSvgGroup(lastDots[ch.label],ch.r,ch.g,ch.b,ch.label,ch.alpha,shape,penMm,rRatio,visiblePlanes.has(ch.label));
-  });
-  svg+=`</svg>`;
-  const a=document.createElement('a');
-  a.download=`${lastFileBase}${suffix}.svg`;
-  a.href=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml'}));a.click();
+  const name=getDownloadFilename('svg');
+  if(name)triggerDownload(name,URL.createObjectURL(new Blob([buildSvg()],{type:'image/svg+xml'})));
 });
+
+// ============================================================
+// 適用（レンダリング）
+// ============================================================
+btnRender.addEventListener('click',render);
 function render(){
   if(!srcImage)return;
-  const penMm    =parseFloat(iPen.value)||0.2;
-  const canvasWmm=parseFloat(iCW.value)||90;
-  const canvasHmm=parseFloat(iCH.value)||90;
-  const marginMm =parseFloat($('i-margin').value)||0;
-  const gridMm   =getGridMm();
-  const rRatio   =getRadiusRatio();
-  const maxRadMm =gridMm*rRatio*0.5;
-  const mode     =getCurrentMode();
-  const gcr      =getGcr();
-  const useK     =iUseK.checked;
-  const shape    =$('i-shape').value;
-  const bgColor  =$('r-bg').value==='cream'?'#faf6e8':'#ffffff';
-  const angles   ={
-    c:parseFloat($('r-ca').value),m:parseFloat($('r-ma').value),
-    y:parseFloat($('r-ya').value),k:parseFloat($('r-ka').value),
-  };
-  const mmToPx=3.7795*4;
-  const PW=Math.round(canvasWmm*mmToPx),PH=Math.round(canvasHmm*mmToPx);
-  mainCanvas.width=PW;mainCanvas.height=PH;
-  lastPW=PW;lastPH=PH;lastBgColor=bgColor;lastChOffscreens={};
+  const p=readParams();
+  const pw=Math.round(p.canvasWmm*MM_TO_PX),ph=Math.round(p.canvasHmm*MM_TO_PX);
+  mainCanvas.width=pw;mainCanvas.height=ph;
 
-  const cropRect=getCropRect();
-  const sampleW=1024,sampleH=Math.round(1024*canvasHmm/canvasWmm);
-  const tmpC=document.createElement('canvas');tmpC.width=sampleW;tmpC.height=sampleH;
-  const tmpCtx=tmpC.getContext('2d');
-  if(cropRect)tmpCtx.drawImage(srcImage,cropRect.sx,cropRect.sy,cropRect.sw,cropRect.sh,0,0,sampleW,sampleH);
-  else tmpCtx.drawImage(srcImage,0,0,sampleW,sampleH);
-  const src=tmpCtx.getImageData(0,0,sampleW,sampleH).data;
-  const srcW=sampleW,srcH=sampleH;
-
-  const cmyk=new Float32Array(srcW*srcH*4);
-  for(let i=0;i<srcW*srcH;i++){
-    const r=src[i*4],g=src[i*4+1],b=src[i*4+2];
-    if(mode==='mono'){
-      cmyk[i*4+3]=(1-(0.299*r+0.587*g+0.114*b)/255);
-    }else{
-      const[c,m,y,k]=rgbToCmyk(r,g,b,gcr);
-      cmyk[i*4]=c;cmyk[i*4+1]=m;cmyk[i*4+2]=y;cmyk[i*4+3]=k;
-    }
-  }
-
-  const chDefs=mode==='mono'
-    ?[{idx:3,angle:angles.k,r:0,g:0,b:0,label:'K',previewId:'k-canvas',alpha:0.95}]
-    :[
-      {idx:0,angle:angles.c,r:0,  g:183,b:235,label:'C',previewId:'c-canvas',alpha:0.90},
-      {idx:1,angle:angles.m,r:236,g:0,  b:140,label:'M',previewId:'m-canvas',alpha:0.90},
-      {idx:2,angle:angles.y,r:255,g:242,b:0,  label:'Y',previewId:'y-canvas',alpha:0.85},
-      ...(useK?[{idx:3,angle:angles.k,r:0,g:0,b:0,label:'K',previewId:'k-canvas',alpha:0.95}]:[]),
-    ];
-
-  ctx.fillStyle=bgColor;ctx.fillRect(0,0,PW,PH);
-  lastDots={};
-
-  chDefs.forEach(ch=>{
-    const dots=calcDots(canvasWmm,canvasHmm,cmyk,srcW,srcH,ch.idx,ch.angle,gridMm,maxRadMm,penMm,marginMm);
-    lastDots[ch.label]=dots;
-    const off=document.createElement('canvas');off.width=PW;off.height=PH;
-    drawDotsCanvas(off.getContext('2d'),dots,mmToPx,ch.r,ch.g,ch.b,ch.alpha,shape,penMm,rRatio,canvasWmm,canvasHmm,marginMm);
-    lastChOffscreens[ch.label]=off;
-    if(visiblePlanes.has(ch.label)){ctx.save();ctx.globalCompositeOperation='multiply';ctx.drawImage(off,0,0);ctx.restore();}
-    const pv=$(ch.previewId);pv.width=PW;pv.height=PH;
-    const pc=pv.getContext('2d');pc.fillStyle='#ffffff';pc.fillRect(0,0,PW,PH);
-    pc.save();pc.globalCompositeOperation='multiply';pc.drawImage(off,0,0);pc.restore();
+  const {cmyk,srcW,srcH}=sampleSourceCmyk(p);
+  const channels=MODE_CHANNELS[p.mode];
+  const dots={},offscreens={};
+  channels.forEach(label=>{
+    const ch=CHANNEL_BY_LABEL[label];
+    dots[label]=calcDots(cmyk,srcW,srcH,ch,p);
+    const off=document.createElement('canvas');off.width=pw;off.height=ph;
+    drawDotsCanvas(off.getContext('2d'),dots[label],ch,p);
+    offscreens[label]=off;
   });
-
-  const usedIds=new Set(chDefs.map(ch=>ch.previewId));
-  ['c-canvas','m-canvas','y-canvas','k-canvas'].forEach(id=>{
-    if(!usedIds.has(id)){
-      const pv=$(id);pv.width=PW;pv.height=PH;
-      pv.getContext('2d').fillStyle='#ffffff';pv.getContext('2d').fillRect(0,0,PW,PH);
-    }
-  });
-
-  $('msg').textContent=`完成！ ${canvasWmm}×${canvasHmm}mm / グリッド:${gridMm.toFixed(2)}mm / ペン:${penMm}mm / 余白:${marginMm}mm`;
 
   const d=new Date(), pad=n=>String(n).padStart(2,'0');
   const ts=`${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
-  lastFileBase=`halftone_${mode}_${ts}`;
-  lastGeneratedLabels=new Set(chDefs.map(ch=>ch.label));
-  lastChDefs=chDefs;
-  lastSvgParams={canvasWmm,canvasHmm,bgColor,gridMm,penMm,marginMm,rRatio,shape,mode};
+  lastResult={params:p,channels,dots,offscreens,pw,ph,fileBase:`halftone_${p.mode}_${ts}`};
+
+  redrawMainCanvas();
+  drawPreviews();
+  updatePlaneButtons();
+  $('msg').textContent=`完成！ ${p.canvasWmm}×${p.canvasHmm}mm / グリッド:${p.gridMm.toFixed(2)}mm / ペン:${p.penMm}mm / 余白:${p.marginMm}mm`;
   $('btn-dl-png').style.display='inline-block';$('btn-dl-svg').style.display='inline-block';
   clearDirty();
 }
